@@ -10,66 +10,65 @@
 // ----------------------------------------------------
 // Build hex-style lattice positions & edges
 // ----------------------------------------------------
-function createHexGrid(cols, rows) {
-  const raw = [];
-  const edges = [];
-
-  const cellW = 1.0;
-  const cellH = Math.sqrt(3) * 0.5 * cellW;
-
-  // Raw hex coordinates
+function buildHexPoints(cols, rows, cellHeight) {
+  const points = [];
   for (let j = 0; j < rows; j++) {
-    const odd = j % 2;
+    const offset = (j % 2) * 0.5;
     for (let i = 0; i < cols; i++) {
-      const x = i + odd * 0.5;
-      const y = j * cellH;
-      raw.push({ x, y });
+      points.push({ x: i + offset, y: j * cellHeight });
     }
   }
+  return points;
+}
 
-  // Compute bounds
-  let minX = Infinity, maxX = -Infinity;
-  let minY = Infinity, maxY = -Infinity;
-  for (const p of raw) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
+function computeBounds(points) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  for (const { x, y } of points) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
   }
 
-  const spanX = maxX - minX || 1;
-  const spanY = maxY - minY || 1;
+  return {
+    minX,
+    minY,
+    spanX: maxX - minX || 1,
+    spanY: maxY - minY || 1
+  };
+}
 
-  // Normalize to [-1,1] and widen horizontally
-  const positions = new Float32Array(raw.length * 2);
-  for (let i = 0; i < raw.length; i++) {
-    const p = raw[i];
-    let nx = ((p.x - minX) / spanX) * 2.0 - 1.0;
-    let ny = ((p.y - minY) / spanY) * 2.0 - 1.0;
+function normalizePositions(points, bounds, widenFactor) {
+  const positions = new Float32Array(points.length * 2);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const nx = ((p.x - bounds.minX) / bounds.spanX) * 2 - 1;
+    const ny = ((p.y - bounds.minY) / bounds.spanY) * 2 - 1;
 
-    nx *= 1.25; // widen background mesh horizontally
-
-    positions[i * 2] = nx;
+    positions[i * 2] = nx * widenFactor;
     positions[i * 2 + 1] = ny;
   }
+  return positions;
+}
 
-  // Build connectivity (hex lines)
+function buildHexEdges(cols, rows) {
+  const edges = [];
   const index = (i, j) => j * cols + i;
 
   for (let j = 0; j < rows; j++) {
     const odd = j % 2;
-
     for (let i = 0; i < cols; i++) {
       const a = index(i, j);
 
-      // Horizontal neighbor
       if (i + 1 < cols) edges.push(a, index(i + 1, j));
 
-      // Down neighbors
       if (j + 1 < rows) {
-        edges.push(a, index(i, j + 1)); // vertical-ish
+        edges.push(a, index(i, j + 1));
 
-        // diagonal
         const di = odd ? i + 1 : i - 1;
         if (di >= 0 && di < cols) {
           edges.push(a, index(di, j + 1));
@@ -78,10 +77,17 @@ function createHexGrid(cols, rows) {
     }
   }
 
-  return {
-    positions,
-    indices: new Uint16Array(edges)
-  };
+  return new Uint16Array(edges);
+}
+
+function createHexGrid(cols, rows) {
+  const cellHeight = Math.sqrt(3) * 0.5;
+  const rawPoints = buildHexPoints(cols, rows, cellHeight);
+  const bounds = computeBounds(rawPoints);
+  const positions = normalizePositions(rawPoints, bounds, 1.25);
+  const indices = buildHexEdges(cols, rows);
+
+  return { positions, indices };
 }
 
 // ----------------------------------------------------
@@ -273,21 +279,21 @@ window.addEventListener("load", () => {
     }
 
     if (aspect >= 1) {
-      aspectScale.x = 1.0;
+      aspectScale.x = 1;
       aspectScale.y = aspect;
     } else if (aspect > 0) {
-      aspectScale.x = 1.0 / aspect;
-      aspectScale.y = 1.0;
+      aspectScale.x = 1 / aspect;
+      aspectScale.y = 1;
     } else {
-      aspectScale.x = 1.0;
-      aspectScale.y = 1.0;
+      aspectScale.x = 1;
+      aspectScale.y = 1;
     }
   }
 
   window.addEventListener("resize", resize);
   resize();
 
-  gl.clearColor(0.01, 0.02, 0.06, 1.0);
+  gl.clearColor(0.01, 0.02, 0.06, 1);
   gl.disable(gl.DEPTH_TEST);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -301,7 +307,7 @@ window.addEventListener("load", () => {
     mouse.y += (targetMouse.y - mouse.y) * 0.07;
 
     // Automatic mesh zoom for performance + aesthetics
-    let scale = 1.0;
+    let scale;
     const w = window.innerWidth;
 
     if (w < 480) {
@@ -311,7 +317,7 @@ window.addEventListener("load", () => {
     } else if (w < 1024) {
       scale = 1.2;   // tablets
     } else {
-      scale = 1.0;   // desktop
+      scale = 1;   // desktop
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
