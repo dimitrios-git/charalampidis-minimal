@@ -1,0 +1,112 @@
+/* Reset-ish */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Page */
+body {
+  min-height: 100vh;
+  overflow: hidden; /* no scroll; full-viewport scene */
+  background: #020617;
+  color: #e5e7eb;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* WebGL background */
+#bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 0;
+  pointer-events: none; /* card remains fully interactive */
+}
+
+/* Foreground card */
+.card {
+  position: absolute;
+  left: 50%;
+  top: 60vh; /* slightly below center for a more deliberate composition */
+  transform: translate(-50%, -50%);
+  width: min(360px, 90vw);
+
+  padding: 18px 20px 16px;
+  border-radius: 8px;
+
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+
+  z-index: 1;
+  text-align: left;
+}
+
+/* Typography */
+.card h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f9fafb;
+}
+
+.card .email {
+  display: inline-block;
+  margin-top: 20px;
+  margin-bottom: 16px;
+  font-size: 1rem;
+  color: #e5e7eb;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.card .email:hover {
+  border-bottom-color: #f9fafb;
+}
+
+/* Links */
+.card .links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.card .links a {
+  color: #e5e7eb;
+  text-decoration: none;
+}
+
+.card .links a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive tweaks */
+@media (max-width: 480px) {
+  .card {
+    top: 56vh;
+    padding: 16px 16px 14px;
+  }
+
+  .card h1 {
+    font-size: 0.96rem;
+  }
+
+  .card .email {
+    font-size: 0.8rem;
+  }
+}
+
