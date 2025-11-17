@@ -95,6 +95,7 @@ attribute vec2 aBasePos;
 uniform float uTime;
 uniform vec2 uMouse;
 uniform float uScale;  // <-- dynamic mesh scaling
+uniform vec2 uAspect; // aspect correction so hexes stay equilateral
 
 varying float vDist;
 varying float vWave;
@@ -135,7 +136,7 @@ void main() {
   vec2 finalPos =
     (p + ambient + vec2(0.0, wave) + mouseOffset) * uScale;
 
-  gl_Position = vec4(finalPos, 0.0, 1.0);
+  gl_Position = vec4(finalPos * uAspect, 0.0, 1.0);
 
   vDist = dist;
   vWave = abs(wave) + influence * 0.5;
@@ -232,6 +233,7 @@ window.addEventListener("load", () => {
   const uTime = gl.getUniformLocation(program, "uTime");
   const uMouse = gl.getUniformLocation(program, "uMouse");
   const uScale = gl.getUniformLocation(program, "uScale");
+  const uAspect = gl.getUniformLocation(program, "uAspect");
 
   // Buffers
   const posBuf = gl.createBuffer();
@@ -248,6 +250,7 @@ window.addEventListener("load", () => {
   // Mouse in [-1,1]
   let targetMouse = { x: 0, y: 0 };
   let mouse = { x: 0, y: 0 };
+  const aspectScale = { x: 1, y: 1 };
 
   document.addEventListener("mousemove", e => {
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
@@ -261,11 +264,23 @@ window.addEventListener("load", () => {
     const dpr = window.devicePixelRatio || 1;
     const w = (canvas.clientWidth || window.innerWidth) * dpr;
     const h = (canvas.clientHeight || window.innerHeight) * dpr;
+    const aspect = h > 0 ? w / h : 1;
 
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
       gl.viewport(0, 0, w, h);
+    }
+
+    if (aspect >= 1) {
+      aspectScale.x = 1.0;
+      aspectScale.y = aspect;
+    } else if (aspect > 0) {
+      aspectScale.x = 1.0 / aspect;
+      aspectScale.y = 1.0;
+    } else {
+      aspectScale.x = 1.0;
+      aspectScale.y = 1.0;
     }
   }
 
@@ -304,6 +319,7 @@ window.addEventListener("load", () => {
     gl.uniform1f(uTime, t);
     gl.uniform2f(uMouse, mouse.x, mouse.y);
     gl.uniform1f(uScale, scale);
+    gl.uniform2f(uAspect, aspectScale.x, aspectScale.y);
 
     gl.drawElements(gl.LINES, grid.indices.length, gl.UNSIGNED_SHORT, 0);
 
@@ -312,4 +328,3 @@ window.addEventListener("load", () => {
 
   requestAnimationFrame(render);
 });
-
