@@ -1,8 +1,10 @@
-# charalampidis-minimal  
+# charalampidis-minimal
+
 _A brutally minimal personal contact page with a custom WebGL background.  
 Zero frameworks, zero tracking, zero dependencies at runtime._
 
 ## ✨ Overview
+
 This project powers the current version of **https://charalampidis.pro/** —  
 a single-page contact card built entirely with:
 
@@ -18,9 +20,17 @@ designed to run smoothly on desktop and mobile with minimal GPU load.
 
 The total transfer size (HTML + CSS + JS) is **~3 KB gzipped**.
 
+## 📸 Preview
+
+![Live site preview](website-screenshot.png)
+
+## ⚡ PageSpeed Insights
+
+![Google PageSpeed Insights results](pagespeed-insights.png)
+
 ## 📁 Project Structure
 
-```
+```text
 charalampidis-minimal/
 ├── src/
 │   ├── index.html
@@ -52,6 +62,7 @@ npm run build
 This produces a fully-minified, optimized snapshot in `/dist`.
 
 ### What the build does:
+
 - Minifies CSS
 - Minifies JS
 - Preserves shader code safely
@@ -71,6 +82,7 @@ Disable **mod_pagespeed** on the server for best performance.
 ## 🎨 WebGL Background
 
 Features:
+
 - Ambient wave motion
 - Mouse-reactive force fields (desktop)
 - Auto-zoom scaling for mobile
@@ -80,6 +92,7 @@ Features:
 ## 📦 Philosophy
 
 Avoids:
+
 - Frameworks
 - External fonts
 - Tracking
@@ -88,5 +101,5 @@ Avoids:
 
 ## 📜 License
 
-MIT License  
+[MIT License](LICENSE)  
 © Dimitrios Charalampidis
