@@ -102,11 +102,31 @@ body {
   font-size: 1rem;
   color: #e5e7eb;
   text-decoration: none;
+  position: relative;
+  padding-bottom: 4px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.5);
+  transition: color 0.25s ease;
 }
 
 .card .email:hover {
-  border-bottom-color: #f9fafb;
+  color: rgba(246, 178, 59, 0.92);
+}
+
+.card .email::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1px;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(246, 178, 59, 0.9));
+  transition: transform 0.35s ease;
+}
+
+.card .email:hover::after {
+  transform: scaleX(1);
 }
 
 /* Links */
