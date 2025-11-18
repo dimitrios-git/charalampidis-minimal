@@ -112,6 +112,8 @@ uniform vec2 uAspect; // aspect correction so hexes stay equilateral
 uniform vec2 uShockOrigin;
 uniform float uShockTime;
 uniform float uShockPower;
+uniform float uMouseSpeed;
+uniform float uShockHeat;
 
 varying float vDist;
 varying float vWave;
@@ -133,6 +135,9 @@ float shockProfile(float dist, float time) {
 void main() {
   vec2 p = aBasePos;
 
+  float speedFactor = clamp(uMouseSpeed, 0.0, 2.5);
+  float shockHeat = clamp(uShockHeat, 0.0, 1.0);
+
   // Dist + dir to mouse
   vec2 toM = uMouse - p;
   float dist = length(toM);
@@ -150,6 +155,24 @@ void main() {
 
   // Vertical wave
   float wave = waveFunc(p, uTime);
+
+  // Speed-driven expansion/contraction
+  float contract = 1.0 - 0.18 * smoothstep(0.04, 0.9, speedFactor);
+  float breathing = 1.0 + sin(uTime * 0.9) * 0.02;
+  p *= contract * breathing;
+
+  // Add chaotic ripples when moving quickly
+  vec2 turbulence =
+    vec2(
+      sin(uTime * 5.2 + p.y * 11.5),
+      cos(uTime * 4.1 - p.x * 9.7)
+    ) * 0.02 * speedFactor;
+
+  vec2 fold =
+    vec2(
+      sin((p.x + p.y) * 8.0 - uTime * 7.0),
+      cos((p.x - p.y) * 10.0 + uTime * 5.5)
+    ) * 0.015 * speedFactor * speedFactor;
 
   // Bomb shockwave from clicks/taps
   vec2 bombOffset = vec2(0.0);
@@ -170,12 +193,12 @@ void main() {
 
   // Combine and apply scale
   vec2 finalPos =
-    (p + ambient + vec2(0.0, wave) + mouseOffset + bombOffset) * uScale;
+    (p + ambient + vec2(0.0, wave) + mouseOffset + bombOffset + turbulence + fold) * uScale;
 
   gl_Position = vec4(finalPos * uAspect, 0.0, 1.0);
 
   vDist = dist;
-  vWave = abs(wave) + influence * 0.5;
+  vWave = abs(wave) + influence * 0.5 + speedFactor * 0.2 + shockHeat * 0.3;
 }
 `;
 
@@ -186,32 +209,40 @@ const fragmentSrc = `
 precision mediump float;
 
 uniform float uTime;
+uniform float uMouseSpeed;
+uniform float uShockHeat;
 
 varying float vDist;
 varying float vWave;
 
 void main() {
-  vec3 base = vec3(0.62, 0.79, 1.0);
+  vec3 baseCool = vec3(0.62, 0.79, 1.0);
+  vec3 hot = vec3(1.0, 0.52, 0.12);
+  float heat = pow(clamp(uMouseSpeed * 2.2 + uShockHeat * 1.2, 0.0, 1.0), 0.65);
+  vec3 base = mix(baseCool, hot, heat);
 
   float nearF = exp(-vDist * 2.0);
 
   float globalPulse = 0.5 + 0.5 * sin(uTime * 0.9);
   float localPulse  = 0.5 + 0.5 * sin(uTime * 1.8 + vDist * 7.0);
 
+  float heatGlow = heat * (0.35 + 0.45 * nearF) + uShockHeat * 0.4 * nearF;
   float intensity =
       0.18 +
       0.52 * nearF +
       0.18 * vWave +
-      0.12 * globalPulse * localPulse;
+      0.12 * globalPulse * localPulse +
+      heatGlow;
 
   intensity = clamp(intensity, 0.0, 1.0);
 
   float alpha = intensity * 0.9;
 
   float farF = clamp(vDist * 0.9, 0.0, 1.0);
-  float desat = mix(1.0, 0.75, farF);
+  float desat = mix(1.0, 0.68, farF);
 
   vec3 color = base * intensity * desat;
+  color += vec3(1.0, 0.78, 0.35) * heat * 0.35 * nearF;
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -273,6 +304,8 @@ window.addEventListener("load", () => {
   const uShockOrigin = gl.getUniformLocation(program, "uShockOrigin");
   const uShockTime = gl.getUniformLocation(program, "uShockTime");
   const uShockPower = gl.getUniformLocation(program, "uShockPower");
+  const uMouseSpeed = gl.getUniformLocation(program, "uMouseSpeed");
+  const uShockHeat = gl.getUniformLocation(program, "uShockHeat");
 
   // Buffers
   const posBuf = gl.createBuffer();
@@ -294,6 +327,13 @@ window.addEventListener("load", () => {
     origin: { x: 0, y: 0 },
     start: -1
   };
+  const pointerSpeed = {
+    target: 0,
+    value: 0,
+    lastX: 0,
+    lastY: 0,
+    lastTime: performance.now()
+  };
 
   function clipSpaceFromEvent(e) {
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
@@ -308,8 +348,22 @@ window.addEventListener("load", () => {
     return coords;
   }
 
+  function recordPointerSpeed(coords) {
+    const now = performance.now();
+    const dx = coords.x - pointerSpeed.lastX;
+    const dy = coords.y - pointerSpeed.lastY;
+    const dt = Math.max(1, now - pointerSpeed.lastTime);
+    const dist = Math.hypot(dx, dy);
+    const normalized = dist / (dt / 16);
+    pointerSpeed.target = Math.min(2.5, normalized);
+    pointerSpeed.lastX = coords.x;
+    pointerSpeed.lastY = coords.y;
+    pointerSpeed.lastTime = now;
+  }
+
   document.addEventListener("pointermove", e => {
-    updatePointerTarget(e);
+    const coords = updatePointerTarget(e);
+    recordPointerSpeed(coords);
   });
 
   document.addEventListener(
@@ -317,6 +371,7 @@ window.addEventListener("load", () => {
     e => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const coords = updatePointerTarget(e);
+      recordPointerSpeed(coords);
       shockState.origin.x = coords.x;
       shockState.origin.y = coords.y;
       shockState.start = performance.now();
@@ -381,15 +436,20 @@ window.addEventListener("load", () => {
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    pointerSpeed.value += (pointerSpeed.target - pointerSpeed.value) * 0.08;
+    pointerSpeed.target *= 0.9;
+    if (pointerSpeed.target < 0.0001) pointerSpeed.target = 0;
+
     let shockAge = -1;
     if (shockState.start >= 0) {
       shockAge = (ms - shockState.start) * 0.001;
-      if (shockAge > 4) {
+      if (shockAge > 4.5) {
         shockState.start = -1;
         shockAge = -1;
       }
     }
     const shockStrength = shockAge >= 0 ? Math.max(0, 1 - shockAge / 3.2) : 0;
+    const shockHeat = shockAge >= 0 ? Math.max(0, 1 - shockAge / 2.2) : 0;
 
     gl.uniform1f(uTime, t);
     gl.uniform2f(uMouse, mouse.x, mouse.y);
@@ -398,6 +458,8 @@ window.addEventListener("load", () => {
     gl.uniform2f(uShockOrigin, shockState.origin.x, shockState.origin.y);
     gl.uniform1f(uShockTime, shockAge);
     gl.uniform1f(uShockPower, shockStrength);
+    gl.uniform1f(uMouseSpeed, pointerSpeed.value);
+    gl.uniform1f(uShockHeat, shockHeat);
 
     gl.drawElements(gl.LINES, grid.indices.length, gl.UNSIGNED_SHORT, 0);
 
