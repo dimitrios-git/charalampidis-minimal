@@ -1,51 +1,42 @@
 #!/usr/bin/env node
 
-// -----------------------------------------------------------
-// Minimalistic build script for brutal optimization
-// Uses:
-//   - esbuild to minify JS and CSS
-//   - html-minifier-terser to compress HTML
-// -----------------------------------------------------------
+import esbuild from 'esbuild';
+import { minify } from 'html-minifier-terser';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const esbuild = require('esbuild');
-const { minify } = require('html-minifier-terser');
-const fs = require('fs');
-const path = require('path');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SRC = path.join(__dirname, 'src');
 const DIST = path.join(__dirname, 'dist');
+const STATIC_FILES = ['favicon.svg', '.htaccess'];
 
-// Ensure dist exists
-if (!fs.existsSync(DIST)) fs.mkdirSync(DIST);
+if (!fs.existsSync(DIST)) fs.mkdirSync(DIST, { recursive: true });
 
-// --------------------
-// Copy & minify JS
-// --------------------
-esbuild.buildSync({
-  entryPoints: [`${SRC}/main.js`],
-  outfile: `${DIST}/main.js`,
-  minify: true,
-  bundle: false,
-  sourcemap: false,
-  target: ['es2018']
-});
+function buildJS() {
+  esbuild.buildSync({
+    entryPoints: [path.join(SRC, 'main.js')],
+    outfile: path.join(DIST, 'main.js'),
+    minify: true,
+    bundle: false,
+    sourcemap: false,
+    target: ['es2018']
+  });
+}
 
-// --------------------
-// Copy & minify CSS
-// --------------------
-esbuild.buildSync({
-  entryPoints: [`${SRC}/style.css`],
-  outfile: `${DIST}/style.css`,
-  minify: true,
-  bundle: false
-});
+function buildCSS() {
+  esbuild.buildSync({
+    entryPoints: [path.join(SRC, 'style.css')],
+    outfile: path.join(DIST, 'style.css'),
+    minify: true,
+    bundle: false
+  });
+}
 
-// --------------------
-// Minify HTML
-// --------------------
-(async () => {
-  const html = fs.readFileSync(`${SRC}/index.html`, 'utf8');
-
+async function buildHTML() {
+  const html = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
   const minified = await minify(html, {
     collapseWhitespace: true,
     collapseBooleanAttributes: true,
@@ -53,9 +44,26 @@ esbuild.buildSync({
     minifyCSS: true,
     minifyJS: true
   });
+  fs.writeFileSync(path.join(DIST, 'index.html'), minified);
+}
 
-  fs.writeFileSync(`${DIST}/index.html`, minified);
+function copyStaticFiles() {
+  for (const file of STATIC_FILES) {
+    const sourcePath = path.join(SRC, file);
+    if (fs.existsSync(sourcePath)) {
+      const targetPath = path.join(DIST, file);
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+  }
+}
 
+try {
+  buildJS();
+  buildCSS();
+  await buildHTML();
+  copyStaticFiles();
   console.log('✨ Build complete!');
-})();
-
+} catch (err) {
+  console.error(err);
+  process.exitCode = 1;
+}
