@@ -39,7 +39,7 @@ body {
   left: 50%;
   top: 60vh; /* slightly below center for a more deliberate composition */
   transform: translate(-50%, -50%);
-  width: min(360px, 90vw);
+  width: min(90vw, max-content);
 
   padding: 18px 20px 16px;
   border-radius: 8px;
@@ -51,6 +51,28 @@ body {
 
   z-index: 1;
   text-align: left;
+  overflow: hidden;
+
+  box-shadow: 0 25px 55px rgba(2, 6, 23, 0.55);
+  animation: cardPulse 12s ease-in-out infinite;
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  inset: -40% -10%;
+  background: linear-gradient(
+    130deg,
+    rgba(59, 130, 246, 0.35),
+    rgba(14, 165, 233, 0.12) 45%,
+    transparent 70%
+  );
+  opacity: 0.35;
+  filter: blur(40px);
+  transform: translate3d(-30%, -10%, 0);
+  animation: cardSweep 18s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 /* Typography */
@@ -60,6 +82,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #f9fafb;
+  white-space: nowrap;
 }
 
 .card .email {
@@ -97,7 +120,7 @@ body {
 /* Responsive tweaks */
 @media (max-width: 480px) {
   .card {
-    top: 56vh;
+    top: 68vh;
     padding: 16px 16px 14px;
   }
 
@@ -110,3 +133,42 @@ body {
   }
 }
 
+@media (min-width: 900px) and (min-height: 640px) {
+  .card {
+    left: auto;
+    top: auto;
+    right: clamp(24px, 8vw, 96px);
+    bottom: clamp(24px, 8vh, 96px);
+    transform: none;
+  }
+}
+
+@keyframes cardPulse {
+  0% {
+    box-shadow: 0 25px 55px rgba(2, 6, 23, 0.55);
+    background: rgba(2, 6, 23, 0.56);
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+  50% {
+    box-shadow: 0 35px 75px rgba(15, 23, 42, 0.7);
+    background: rgba(2, 6, 23, 0.72);
+    border-color: rgba(191, 219, 254, 0.55);
+  }
+  100% {
+    box-shadow: 0 25px 55px rgba(2, 6, 23, 0.55);
+    background: rgba(2, 6, 23, 0.56);
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+}
+
+@keyframes cardSweep {
+  0% {
+    transform: translate3d(-30%, -10%, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(10%, 20%, 0) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(60%, -15%, 0) rotate(-1deg);
+  }
+}
