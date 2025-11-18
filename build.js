@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 
 const SRC = path.join(__dirname, 'src');
 const DIST = path.join(__dirname, 'dist');
-const STATIC_FILES = ['favicon.svg', '.htaccess'];
+const STATIC_FILES = ['favicon.svg', '.htaccess', 'robots.txt'];
 
 if (!fs.existsSync(DIST)) fs.mkdirSync(DIST, { recursive: true });
 
