@@ -147,6 +147,57 @@ body {
   text-decoration: underline;
 }
 
+.context-menu {
+  position: fixed;
+  min-width: 200px;
+  padding: 10px 0;
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 20px 45px rgba(2, 6, 23, 0.75);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  display: none;
+  flex-direction: column;
+  z-index: 3;
+  top: 0;
+  left: 0;
+}
+
+.context-menu.open {
+  display: flex;
+}
+
+.context-menu .context-header {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  padding: 4px 16px 10px;
+}
+
+.context-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #e5e7eb;
+  font: inherit;
+  text-align: left;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.context-menu button:hover {
+  background: rgba(18, 49, 114, 0.32);
+  color: #e2e8f0;
+}
+
+.context-menu button.active {
+  color: rgba(246, 178, 59, 0.92);
+  text-shadow: 0 0 6px rgba(251, 191, 36, 0.45);
+}
+
 /* Responsive tweaks */
 @media (max-width: 480px) {
   .card {

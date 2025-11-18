@@ -97,6 +97,12 @@ function createHexGrid(cols, rows) {
   return { positions, indices };
 }
 
+const meshLevels = [
+  { id: "minimal", label: "Light mesh", cols: 52, rows: 18 },
+  { id: "balanced", label: "Balanced mesh", cols: 80, rows: 28 },
+  { id: "dense", label: "Dense mesh", cols: 120, rows: 42 }
+];
+
 // ----------------------------------------------------
 // Vertex Shader (with auto-scale for mobile/tablet)
 // ----------------------------------------------------
@@ -290,8 +296,8 @@ window.addEventListener("load", () => {
 
   if (!gl) return;
 
-  // Denser grid for desktop; auto-scale handles mobile/tablet
-  const grid = createHexGrid(80, 28);
+  let currentMeshLevel = meshLevels[1];
+  let grid = createHexGrid(currentMeshLevel.cols, currentMeshLevel.rows);
 
   const program = createProgram(gl, vertexSrc, fragmentSrc);
   gl.useProgram(program);
@@ -309,12 +315,23 @@ window.addEventListener("load", () => {
 
   // Buffers
   const posBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, grid.positions, gl.STATIC_DRAW);
-
   const idxBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, grid.indices, gl.STATIC_DRAW);
+
+  function uploadGridBuffers(data) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, data.positions, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data.indices, gl.STATIC_DRAW);
+  }
+
+  function applyMeshLevel(level) {
+    currentMeshLevel = level;
+    grid = createHexGrid(level.cols, level.rows);
+    uploadGridBuffers(grid);
+    markActiveMeshButton();
+  }
+
+  uploadGridBuffers(grid);
 
   gl.enableVertexAttribArray(aBasePos);
   gl.vertexAttribPointer(aBasePos, 2, gl.FLOAT, false, 0, 0);
@@ -334,6 +351,72 @@ window.addEventListener("load", () => {
     lastY: 0,
     lastTime: performance.now()
   };
+  const contextMenu = document.getElementById("mesh-menu");
+  const menuButtons = contextMenu
+    ? Array.from(contextMenu.querySelectorAll("button[data-level]"))
+    : [];
+  let menuVisible = false;
+
+  function markActiveMeshButton() {
+    if (!menuButtons.length) return;
+    for (const btn of menuButtons) {
+      const isActive = btn.dataset.level === currentMeshLevel.id;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    }
+  }
+
+  function closeContextMenu() {
+    if (!contextMenu || !menuVisible) return;
+    contextMenu.classList.remove("open");
+    contextMenu.setAttribute("aria-hidden", "true");
+    menuVisible = false;
+  }
+
+  function openContextMenu(clientX, clientY) {
+    if (!contextMenu) return;
+    markActiveMeshButton();
+    contextMenu.classList.add("open");
+    contextMenu.setAttribute("aria-hidden", "false");
+    menuVisible = true;
+
+    requestAnimationFrame(() => {
+      const menuWidth = contextMenu.offsetWidth || 200;
+      const menuHeight = contextMenu.offsetHeight || 140;
+      const maxX = window.innerWidth - menuWidth - 12;
+      const maxY = window.innerHeight - menuHeight - 12;
+      const clampedX = Math.max(12, Math.min(clientX, maxX));
+      const clampedY = Math.max(12, Math.min(clientY, maxY));
+      contextMenu.style.left = `${clampedX}px`;
+      contextMenu.style.top = `${clampedY}px`;
+    });
+  }
+
+  markActiveMeshButton();
+
+  if (contextMenu) {
+    contextMenu.addEventListener("click", e => {
+      const btn = e.target.closest("button[data-level]");
+      if (!btn) return;
+      const level = meshLevels.find(item => item.id === btn.dataset.level);
+      if (level && level.id !== currentMeshLevel.id) {
+        applyMeshLevel(level);
+      }
+      closeContextMenu();
+    });
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      closeContextMenu();
+    }
+  });
+
+  document.addEventListener("contextmenu", e => {
+    e.preventDefault();
+    if (contextMenu?.contains(e.target)) return;
+    openContextMenu(e.clientX, e.clientY);
+  });
 
   function clipSpaceFromEvent(e) {
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
@@ -369,6 +452,20 @@ window.addEventListener("load", () => {
   document.addEventListener(
     "pointerdown",
     e => {
+      if (e.pointerType === "mouse" && e.button === 2) {
+        e.preventDefault();
+        openContextMenu(e.clientX, e.clientY);
+        return;
+      }
+
+      if (contextMenu?.contains(e.target)) {
+        return;
+      }
+
+      if (menuVisible) {
+        closeContextMenu();
+      }
+
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const coords = updatePointerTarget(e);
       recordPointerSpeed(coords);
@@ -376,7 +473,7 @@ window.addEventListener("load", () => {
       shockState.origin.y = coords.y;
       shockState.start = performance.now();
     },
-    { passive: true }
+    { passive: false }
   );
 
   // Resize canvas
