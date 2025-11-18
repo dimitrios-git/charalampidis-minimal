@@ -58,21 +58,28 @@ function normalizePositions(points, bounds, widenFactor) {
 function buildHexEdges(cols, rows) {
   const edges = [];
   const index = (i, j) => j * cols + i;
+  const neighborOffsets = [
+    [
+      [1, 0],
+      [0, 1],
+      [-1, 1]
+    ],
+    [
+      [1, 0],
+      [0, 1],
+      [1, 1]
+    ]
+  ];
 
   for (let j = 0; j < rows; j++) {
-    const odd = j % 2;
+    const neighbors = neighborOffsets[j % 2];
     for (let i = 0; i < cols; i++) {
       const a = index(i, j);
-
-      if (i + 1 < cols) edges.push(a, index(i + 1, j));
-
-      if (j + 1 < rows) {
-        edges.push(a, index(i, j + 1));
-
-        const di = odd ? i + 1 : i - 1;
-        if (di >= 0 && di < cols) {
-          edges.push(a, index(di, j + 1));
-        }
+      for (const [dx, dy] of neighbors) {
+        const ni = i + dx;
+        const nj = j + dy;
+        if (ni < 0 || ni >= cols || nj < 0 || nj >= rows) continue;
+        edges.push(a, index(ni, nj));
       }
     }
   }
@@ -102,6 +109,9 @@ uniform float uTime;
 uniform vec2 uMouse;
 uniform float uScale;  // <-- dynamic mesh scaling
 uniform vec2 uAspect; // aspect correction so hexes stay equilateral
+uniform vec2 uShockOrigin;
+uniform float uShockTime;
+uniform float uShockPower;
 
 varying float vDist;
 varying float vWave;
@@ -110,6 +120,14 @@ float waveFunc(vec2 p, float t) {
   return
     sin(p.x * 3.2 + t * 0.75) * 0.03 +
     cos(p.y * 2.4 - t * 0.58) * 0.03;
+}
+
+float shockProfile(float dist, float time) {
+  float waveFront = time * 1.8 + 0.2;
+  float shellWidth = 0.3 + time * 0.35;
+  float ring = 1.0 - smoothstep(0.0, shellWidth, abs(dist - waveFront));
+  float decay = exp(-time * 1.35);
+  return max(0.0, ring * decay);
 }
 
 void main() {
@@ -133,6 +151,18 @@ void main() {
   // Vertical wave
   float wave = waveFunc(p, uTime);
 
+  // Bomb shockwave from clicks/taps
+  vec2 bombOffset = vec2(0.0);
+  if (uShockTime >= 0.0 && uShockPower > 0.0) {
+    vec2 shockVec = p - uShockOrigin;
+    float shockDist = length(shockVec);
+    float amp = shockProfile(shockDist, uShockTime) * uShockPower;
+    if (amp > 0.0) {
+      vec2 dirShock = shockDist > 1e-4 ? shockVec / shockDist : vec2(0.0);
+      bombOffset = dirShock * amp * 0.95;
+    }
+  }
+
   // Force field (mixed pull/push)
   float pulse = sin(uTime * 2.0 - dist * 6.0);
   float polarity = pulse * 0.5;  // -0.5..0.5
@@ -140,7 +170,7 @@ void main() {
 
   // Combine and apply scale
   vec2 finalPos =
-    (p + ambient + vec2(0.0, wave) + mouseOffset) * uScale;
+    (p + ambient + vec2(0.0, wave) + mouseOffset + bombOffset) * uScale;
 
   gl_Position = vec4(finalPos * uAspect, 0.0, 1.0);
 
@@ -240,6 +270,9 @@ window.addEventListener("load", () => {
   const uMouse = gl.getUniformLocation(program, "uMouse");
   const uScale = gl.getUniformLocation(program, "uScale");
   const uAspect = gl.getUniformLocation(program, "uAspect");
+  const uShockOrigin = gl.getUniformLocation(program, "uShockOrigin");
+  const uShockTime = gl.getUniformLocation(program, "uShockTime");
+  const uShockPower = gl.getUniformLocation(program, "uShockPower");
 
   // Buffers
   const posBuf = gl.createBuffer();
@@ -257,13 +290,39 @@ window.addEventListener("load", () => {
   let targetMouse = { x: 0, y: 0 };
   let mouse = { x: 0, y: 0 };
   const aspectScale = { x: 1, y: 1 };
+  const shockState = {
+    origin: { x: 0, y: 0 },
+    start: -1
+  };
 
-  document.addEventListener("mousemove", e => {
+  function clipSpaceFromEvent(e) {
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
     const ny = (e.clientY / window.innerHeight) * 2 - 1;
-    targetMouse.x = nx;
-    targetMouse.y = -ny;
+    return { x: nx, y: -ny };
+  }
+
+  function updatePointerTarget(e) {
+    const coords = clipSpaceFromEvent(e);
+    targetMouse.x = coords.x;
+    targetMouse.y = coords.y;
+    return coords;
+  }
+
+  document.addEventListener("pointermove", e => {
+    updatePointerTarget(e);
   });
+
+  document.addEventListener(
+    "pointerdown",
+    e => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      const coords = updatePointerTarget(e);
+      shockState.origin.x = coords.x;
+      shockState.origin.y = coords.y;
+      shockState.start = performance.now();
+    },
+    { passive: true }
+  );
 
   // Resize canvas
   function resize() {
@@ -322,10 +381,23 @@ window.addEventListener("load", () => {
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    let shockAge = -1;
+    if (shockState.start >= 0) {
+      shockAge = (ms - shockState.start) * 0.001;
+      if (shockAge > 4) {
+        shockState.start = -1;
+        shockAge = -1;
+      }
+    }
+    const shockStrength = shockAge >= 0 ? Math.max(0, 1 - shockAge / 3.2) : 0;
+
     gl.uniform1f(uTime, t);
     gl.uniform2f(uMouse, mouse.x, mouse.y);
     gl.uniform1f(uScale, scale);
     gl.uniform2f(uAspect, aspectScale.x, aspectScale.y);
+    gl.uniform2f(uShockOrigin, shockState.origin.x, shockState.origin.y);
+    gl.uniform1f(uShockTime, shockAge);
+    gl.uniform1f(uShockPower, shockStrength);
 
     gl.drawElements(gl.LINES, grid.indices.length, gl.UNSIGNED_SHORT, 0);
 
